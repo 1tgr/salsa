@@ -442,7 +442,7 @@ pub trait Query: Debug + Default + Sized + for<'d> QueryDb<'d> {
     type Key: Clone + Debug + Hash + Eq;
 
     /// What value does the query return?
-    type Value: Clone + Debug;
+    type Value: Clone;
 
     /// Internal struct storing the values for the query.
     // type Storage: plumbing::QueryStorageOps<Self>;

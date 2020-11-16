@@ -178,13 +178,7 @@ where
         value: Q::Value,
         durability: Durability,
     ) {
-        log::debug!(
-            "{:?}({:?}) = {:?} ({:?})",
-            Q::default(),
-            key,
-            value,
-            durability
-        );
+        log::debug!("{:?}({:?}) = {:?}", Q::default(), key, durability);
 
         // The value is changing, so we need a new revision (*). We also
         // need to update the 'last changed' revision by invoking
