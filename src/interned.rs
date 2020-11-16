@@ -448,7 +448,7 @@ impl<Q, IQ> QueryStorageOps<Q> for LookupInternedStorage<Q, IQ>
 where
     Q: Query,
     Q::Key: InternKey,
-    Q::Value: Eq + Hash,
+    Q::Value: Eq + Hash + Debug,
     IQ: Query<Key = Q::Value, Value = Q::Key, Storage = InternedStorage<IQ>>,
     for<'d> Q: EqualDynDb<'d, IQ>,
 {
@@ -528,7 +528,7 @@ impl<Q, IQ> QueryStorageMassOps for LookupInternedStorage<Q, IQ>
 where
     Q: Query,
     Q::Key: InternKey,
-    Q::Value: Eq + Hash,
+    Q::Value: Eq + Hash + Debug,
     IQ: Query<Key = Q::Value, Value = Q::Key>,
 {
     fn sweep(&self, _: &Runtime, _strategy: SweepStrategy) {}
