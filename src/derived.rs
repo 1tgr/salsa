@@ -63,7 +63,7 @@ pub enum AlwaysMemoizeValue {}
 impl<Q> MemoizationPolicy<Q> for AlwaysMemoizeValue
 where
     Q: QueryFunction,
-    Q::Value: Eq,
+    Q::Value: PartialEq,
 {
     fn should_memoize_value(_key: &Q::Key) -> bool {
         true
