@@ -53,6 +53,7 @@ where
     /// indeeds a cycle.
     InProgress {
         id: RuntimeId,
+        #[allow(clippy::type_complexity)]
         waiting: Mutex<SmallVec<[Promise<WaitResult<Q::Value, DatabaseKeyIndex>>; 2]>>,
     },
 
@@ -375,7 +376,7 @@ where
                                     durability: err.durability,
                                     changed_at: err.changed_at,
                                 })
-                                .ok_or_else(|| err)
+                                .ok_or(err)
                         })
                     }
 
@@ -392,7 +393,7 @@ where
                                     changed_at: err.changed_at,
                                     durability: err.durability,
                                 })
-                                .ok_or_else(|| err),
+                                .ok_or(err),
                         )
                     }
                 };
@@ -644,11 +645,11 @@ where
                         return match self.read_upgrade(db, revision_now) {
                             Ok(v) => {
                                 debug!(
-                                "maybe_changed_since({:?}: {:?} since (recomputed) value changed at {:?}",
-                                self,
+                                    "maybe_changed_since({:?}: {:?} since (recomputed) value changed at {:?}",
+                                    self,
                                     v.changed_at > revision,
-                                v.changed_at,
-                            );
+                                    v.changed_at,
+                                );
                                 v.changed_at > revision
                             }
                             Err(_) => true,
@@ -732,6 +733,7 @@ where
     /// that work completes. This helper does that; it returns a port
     /// where you can wait for the final value that wound up being
     /// computed (but first drop the lock on the map).
+    #[allow(clippy::type_complexity)]
     fn register_with_in_progress_thread(
         &self,
         _db: &<Q as QueryDb<'_>>::DynDb,
@@ -741,7 +743,7 @@ where
     ) -> Result<BlockingFuture<WaitResult<Q::Value, DatabaseKeyIndex>>, CycleDetected> {
         let id = runtime.id();
         if other_id == id {
-            return Err(CycleDetected { from: id, to: id });
+            Err(CycleDetected { from: id, to: id })
         } else {
             if !runtime.try_block_on(self.database_key_index, other_id) {
                 return Err(CycleDetected {
@@ -953,9 +955,7 @@ impl MemoRevisions {
             MemoInputs::Tracked { inputs } => {
                 let changed_input = inputs
                     .iter()
-                    .filter(|&&input| db.maybe_changed_since(input, verified_at))
-                    .next();
-
+                    .find(|&&input| db.maybe_changed_since(input, verified_at));
                 if let Some(input) = changed_input {
                     debug!("validate_memoized_value: `{:?}` may have changed", input);
 
@@ -985,10 +985,7 @@ impl MemoRevisions {
     }
 
     fn has_untracked_input(&self) -> bool {
-        match self.inputs {
-            MemoInputs::Untracked => true,
-            _ => false,
-        }
+        matches!(self.inputs, MemoInputs::Untracked)
     }
 }
 

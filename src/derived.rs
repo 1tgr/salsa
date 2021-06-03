@@ -37,6 +37,7 @@ where
 {
     group_index: u16,
     lru_list: Lru<Slot<Q, MP>>,
+    #[allow(clippy::type_complexity)]
     slot_map: RwLock<FxIndexMap<Q::Key, Arc<Slot<Q, MP>>>>,
     policy: PhantomData<MP>,
 }
@@ -104,7 +105,7 @@ where
         let database_key_index = DatabaseKeyIndex {
             group_index: self.group_index,
             query_index: Q::QUERY_INDEX,
-            key_index: key_index,
+            key_index,
         };
         entry
             .or_insert_with(|| Arc::new(Slot::new(key.clone(), database_key_index)))
