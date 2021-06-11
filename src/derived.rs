@@ -1,3 +1,4 @@
+use crate::compat::RwLock;
 use crate::debug::TableEntry;
 use crate::durability::Durability;
 use crate::lru::Lru;
@@ -8,12 +9,11 @@ use crate::plumbing::QueryStorageMassOps;
 use crate::plumbing::QueryStorageOps;
 use crate::runtime::{FxIndexMap, StampedValue};
 use crate::{CycleError, Database, DatabaseKeyIndex, QueryDb, Revision};
-use parking_lot::RwLock;
-use std::borrow::Borrow;
-use std::convert::TryFrom;
-use std::hash::Hash;
-use std::marker::PhantomData;
-use std::sync::Arc;
+use alloc::sync::Arc;
+use core::borrow::Borrow;
+use core::convert::TryFrom;
+use core::hash::Hash;
+use core::marker::PhantomData;
 
 mod slot;
 use slot::Slot;
@@ -41,6 +41,7 @@ where
     policy: PhantomData<MP>,
 }
 
+#[cfg(feature = "std")]
 impl<Q, MP> std::panic::RefUnwindSafe for DerivedStorage<Q, MP>
 where
     Q: QueryFunction,
@@ -130,8 +131,8 @@ where
         &self,
         _db: &<Q as QueryDb<'_>>::DynDb,
         index: DatabaseKeyIndex,
-        fmt: &mut std::fmt::Formatter<'_>,
-    ) -> std::fmt::Result {
+        fmt: &mut core::fmt::Formatter<'_>,
+    ) -> core::fmt::Result {
         assert_eq!(index.group_index, self.group_index);
         assert_eq!(index.query_index, Q::QUERY_INDEX);
         let slot_map = self.slot_map.read();
@@ -187,7 +188,7 @@ where
 
     fn entries<C>(&self, _db: &<Q as QueryDb<'_>>::DynDb) -> C
     where
-        C: std::iter::FromIterator<TableEntry<Q::Key, Q::Value>>,
+        C: core::iter::FromIterator<TableEntry<Q::Key, Q::Value>>,
     {
         let slot_map = self.slot_map.read();
         slot_map

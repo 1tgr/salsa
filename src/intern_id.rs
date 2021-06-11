@@ -1,5 +1,5 @@
-use std::fmt;
-use std::num::NonZeroU32;
+use core::fmt;
+use core::num::NonZeroU32;
 
 /// The "raw-id" is used for interned keys in salsa -- it is basically
 /// a newtype'd u32. Typically, it is wrapped in a type of your own

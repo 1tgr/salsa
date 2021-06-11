@@ -149,8 +149,8 @@ pub(crate) fn database(args: TokenStream, input: TokenStream) -> TokenStream {
             fn fmt_index(
                 &self,
                 input: salsa::DatabaseKeyIndex,
-                fmt: &mut std::fmt::Formatter<'_>,
-            ) -> std::fmt::Result {
+                fmt: &mut core::fmt::Formatter<'_>,
+            ) -> core::fmt::Result {
                 match input.group_index() {
                     #fmt_ops
                     i => panic!("salsa: invalid group index {}", i)

@@ -1,5 +1,5 @@
 use crate::{plumbing::DatabaseStorageTypes, Runtime};
-use std::sync::Arc;
+use alloc::sync::Arc;
 
 /// Stores the cached results and dependency information for all the queries
 /// defined on your salsa database. Also embeds a [`Runtime`] which is used to
@@ -44,6 +44,7 @@ impl<DB: DatabaseStorageTypes> Storage<DB> {
     /// **Warning.** This second handle is intended to be used from a separate
     /// thread. Using two database handles from the **same thread** can lead to
     /// deadlock.
+    #[cfg(feature = "std")]
     pub fn snapshot(&self) -> Self {
         Storage {
             query_store: self.query_store.clone(),

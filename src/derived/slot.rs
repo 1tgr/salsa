@@ -1,4 +1,5 @@
 use crate::blocking_future::{BlockingFuture, Promise};
+use crate::compat::{Mutex, RwLock};
 use crate::debug::TableEntry;
 use crate::derived::MemoizationPolicy;
 use crate::durability::Durability;
@@ -12,13 +13,12 @@ use crate::runtime::RuntimeId;
 use crate::runtime::StampedValue;
 use crate::Cancelled;
 use crate::{CycleError, Database, DatabaseKeyIndex, Event, EventKind, QueryDb};
+use alloc::sync::Arc;
+use alloc::vec::Vec;
+use core::marker::PhantomData;
+use core::ops::Deref;
 use log::{debug, info};
-use parking_lot::Mutex;
-use parking_lot::{RawRwLock, RwLock};
 use smallvec::SmallVec;
-use std::marker::PhantomData;
-use std::ops::Deref;
-use std::sync::Arc;
 
 pub(super) struct Slot<Q, MP>
 where
@@ -166,10 +166,10 @@ where
             ProbeState::UpToDate(v) => return v,
             ProbeState::StaleOrAbsent(state) => {
                 type RwLockUpgradableReadGuard<'a, T> =
-                    lock_api::RwLockUpgradableReadGuard<'a, RawRwLock, T>;
+                    crate::compat::RwLockUpgradableReadGuard<'a, T>;
 
                 let mut state = RwLockUpgradableReadGuard::upgrade(state);
-                match std::mem::replace(&mut *state, QueryState::in_progress(runtime.id())) {
+                match core::mem::replace(&mut *state, QueryState::in_progress(runtime.id())) {
                     QueryState::Memoized(old_memo) => Some(old_memo),
                     QueryState::InProgress { .. } => unreachable!(),
                     QueryState::NotComputed => None,
@@ -341,7 +341,7 @@ where
                 return match self.register_with_in_progress_thread(db, runtime, other_id, waiting) {
                     Ok(future) => {
                         // Release our lock on `self.state`, so other thread can complete.
-                        std::mem::drop(state);
+                        core::mem::drop(state);
 
                         db.salsa_event(Event {
                             runtime_id: runtime.id(),
@@ -511,7 +511,7 @@ where
                 match self.register_with_in_progress_thread(db, runtime, other_id, waiting) {
                     Ok(future) => {
                         // Release our lock on `self.state`, so other thread can complete.
-                        std::mem::drop(state);
+                        core::mem::drop(state);
 
                         let result = future.wait().unwrap_or_else(|| Cancelled::throw());
                         return !result.cycle.is_empty() || result.value.changed_at > revision;
@@ -541,7 +541,7 @@ where
         // modified since then, we cannot have changed; no need to
         // trace our inputs.
         if memo.revisions.check_durability(runtime) {
-            std::mem::drop(state);
+            core::mem::drop(state);
             maybe_changed = false;
         } else {
             match &memo.revisions.inputs {
@@ -558,7 +558,7 @@ where
                 }
 
                 MemoInputs::NoInputs => {
-                    std::mem::drop(state);
+                    core::mem::drop(state);
                     maybe_changed = false;
                 }
 
@@ -571,7 +571,7 @@ where
                     // already know the result.
                     assert!(inputs.len() > 0);
                     if memo.value.is_some() {
-                        std::mem::drop(state);
+                        core::mem::drop(state);
                         return match self.read_upgrade(db, revision_now) {
                             Ok(v) => {
                                 debug!(
@@ -589,7 +589,7 @@ where
                     // We have a **tracked set of inputs** that need to be validated.
                     let inputs = inputs.clone();
                     // We'll need to update the state anyway (see below), so release the read-lock.
-                    std::mem::drop(state);
+                    core::mem::drop(state);
 
                     // Iterate the inputs and see if any have maybe changed.
                     maybe_changed = inputs
@@ -743,12 +743,12 @@ where
     /// are out of scope.
     fn proceed(mut self, new_value: &StampedValue<Q::Value>, cycle: Vec<DatabaseKeyIndex>) {
         self.overwrite_placeholder(Some((new_value, cycle)));
-        std::mem::forget(self)
+        core::mem::forget(self)
     }
 
     fn report_unexpected_cycle(mut self) {
         self.overwrite_placeholder(None);
-        std::mem::forget(self)
+        core::mem::forget(self)
     }
 
     /// Overwrites the `InProgress` placeholder for `key` that we
@@ -763,12 +763,12 @@ where
         let old_value = match self.memo.take() {
             // Replace the `InProgress` marker that we installed with the new
             // memo, thus releasing our unique access to this key.
-            Some(memo) => std::mem::replace(&mut *write, QueryState::Memoized(memo)),
+            Some(memo) => core::mem::replace(&mut *write, QueryState::Memoized(memo)),
 
             // We had installed an `InProgress` marker, but we panicked before
             // it could be removed. At this point, we therefore "own" unique
             // access to our slot, so we can just remove the key.
-            None => std::mem::replace(&mut *write, QueryState::NotComputed),
+            None => core::mem::replace(&mut *write, QueryState::NotComputed),
         };
 
         match old_value {
@@ -794,7 +794,7 @@ where
                     // Therefore, we need to drop the sending half of the
                     // channel so that our panic propagates to those waiting
                     // on the receiving half.
-                    None => std::mem::drop(waiting),
+                    None => core::mem::drop(waiting),
                 }
             }
             _ => panic!(
@@ -813,14 +813,16 @@ where
     MP: MemoizationPolicy<Q>,
 {
     fn drop(&mut self) {
+        #[cfg(feature = "std")]
         if std::thread::panicking() {
             // We panicked before we could proceed and need to remove `key`.
-            self.overwrite_placeholder(None)
-        } else {
-            // If no panic occurred, then panic guard ought to be
-            // "forgotten" and so this Drop code should never run.
-            panic!(".forget() was not called")
+            self.overwrite_placeholder(None);
+            return;
         }
+
+        // If no panic occurred, then panic guard ought to be
+        // "forgotten" and so this Drop code should never run.
+        panic!(".forget() was not called")
     }
 }
 
@@ -918,18 +920,18 @@ impl MemoRevisions {
     }
 }
 
-impl<Q, MP> std::fmt::Debug for Slot<Q, MP>
+impl<Q, MP> core::fmt::Debug for Slot<Q, MP>
 where
     Q: QueryFunction,
     MP: MemoizationPolicy<Q>,
 {
-    fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, fmt: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(fmt, "{:?}({:?})", Q::default(), self.key)
     }
 }
 
 impl MemoInputs {
-    fn debug<'a, D: ?Sized>(&'a self, db: &'a D) -> impl std::fmt::Debug + 'a
+    fn debug<'a, D: ?Sized>(&'a self, db: &'a D) -> impl core::fmt::Debug + 'a
     where
         D: DatabaseOps,
     {
@@ -942,8 +944,8 @@ impl MemoInputs {
             Untracked,
         }
 
-        impl<D: ?Sized + DatabaseOps> std::fmt::Debug for DebugMemoInputs<'_, D> {
-            fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        impl<D: ?Sized + DatabaseOps> core::fmt::Debug for DebugMemoInputs<'_, D> {
+            fn fmt(&self, fmt: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
                 match self {
                     DebugMemoInputs::Tracked { inputs, db } => fmt
                         .debug_struct("Tracked")
@@ -969,8 +971,8 @@ impl MemoInputs {
     }
 }
 
-impl std::fmt::Debug for MemoInputs {
-    fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl core::fmt::Debug for MemoInputs {
+    fn fmt(&self, fmt: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             MemoInputs::Tracked { inputs } => {
                 fmt.debug_struct("Tracked").field("inputs", inputs).finish()

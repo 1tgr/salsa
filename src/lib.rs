@@ -1,3 +1,4 @@
+#![cfg_attr(not(feature = "std"), no_std)]
 #![allow(clippy::type_complexity)]
 #![warn(rust_2018_idioms)]
 #![warn(missing_docs)]
@@ -8,7 +9,10 @@
 //! re-execute the derived queries and it will try to re-use results
 //! from previous invocations as appropriate.
 
+extern crate alloc;
+
 mod blocking_future;
+mod compat;
 mod derived;
 mod doctest;
 mod durability;
@@ -33,10 +37,10 @@ use crate::plumbing::LruQueryStorageOps;
 use crate::plumbing::QueryStorageMassOps;
 use crate::plumbing::QueryStorageOps;
 pub use crate::revision::Revision;
-use std::fmt::{self, Debug};
-use std::hash::Hash;
-use std::panic::{self, UnwindSafe};
-use std::sync::Arc;
+use alloc::sync::Arc;
+use alloc::vec::Vec;
+use core::fmt::{self, Debug};
+use core::hash::Hash;
 
 pub use crate::durability::Durability;
 pub use crate::intern_id::InternId;
@@ -281,7 +285,7 @@ where
     }
 }
 
-impl<DB> std::ops::Deref for Snapshot<DB>
+impl<DB> core::ops::Deref for Snapshot<DB>
 where
     DB: ParallelDatabase,
 {
@@ -324,7 +328,7 @@ impl DatabaseKeyIndex {
 
     /// Returns a type that gives a user-readable debug output.
     /// Use like `println!("{:?}", index.debug(db))`.
-    pub fn debug<D: ?Sized>(self, db: &D) -> impl std::fmt::Debug + '_
+    pub fn debug<D: ?Sized>(self, db: &D) -> impl core::fmt::Debug + '_
     where
         D: plumbing::DatabaseOps,
     {
@@ -341,11 +345,11 @@ where
     db: &'me D,
 }
 
-impl<D: ?Sized> std::fmt::Debug for DatabaseKeyIndexDebug<'_, D>
+impl<D: ?Sized> core::fmt::Debug for DatabaseKeyIndexDebug<'_, D>
 where
     D: plumbing::DatabaseOps,
 {
-    fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, fmt: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         self.db.fmt_index(self.index, fmt)
     }
 }
@@ -590,30 +594,35 @@ impl Cancelled {
     fn throw() -> ! {
         // We use resume and not panic here to avoid running the panic
         // hook (that is, to avoid collecting and printing backtrace).
+        #[cfg(feature = "std")]
         std::panic::resume_unwind(Box::new(Self));
+        #[cfg(not(feature = "std"))]
+        unreachable!()
     }
 
     /// Runs `f`, and catches any salsa cancellation.
+    #[cfg(feature = "std")]
     pub fn catch<F, T>(f: F) -> Result<T, Cancelled>
     where
-        F: FnOnce() -> T + UnwindSafe,
+        F: FnOnce() -> T + std::panic::UnwindSafe,
     {
-        match panic::catch_unwind(f) {
+        match std::panic::catch_unwind(f) {
             Ok(t) => Ok(t),
             Err(payload) => match payload.downcast() {
                 Ok(cancelled) => Err(*cancelled),
-                Err(payload) => panic::resume_unwind(payload),
+                Err(payload) => std::panic::resume_unwind(payload),
             },
         }
     }
 }
 
-impl std::fmt::Display for Cancelled {
+impl core::fmt::Display for Cancelled {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str("cancelled")
     }
 }
 
+#[cfg(feature = "std")]
 impl std::error::Error for Cancelled {}
 
 // Re-export the procedural macros.

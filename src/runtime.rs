@@ -1,18 +1,19 @@
+use crate::compat::{Mutex, RwLock};
 use crate::plumbing::CycleDetected;
 use crate::revision::{AtomicRevision, Revision};
 use crate::{durability::Durability, Cancelled};
 use crate::{CycleError, Database, DatabaseKeyIndex, Event, EventKind};
+use alloc::sync::Arc;
+use alloc::vec::Vec;
+use core::hash::Hash;
+use core::sync::atomic::AtomicUsize;
+use hashbrown::hash_map::DefaultHashBuilder;
+use hashbrown::HashMap;
 use log::debug;
-use parking_lot::lock_api::{RawRwLock, RawRwLockRecursive};
-use parking_lot::{Mutex, RwLock};
-use rustc_hash::{FxHashMap, FxHasher};
 use smallvec::SmallVec;
-use std::hash::{BuildHasherDefault, Hash};
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::Arc;
 
-pub(crate) type FxIndexSet<K> = indexmap::IndexSet<K, BuildHasherDefault<FxHasher>>;
-pub(crate) type FxIndexMap<K, V> = indexmap::IndexMap<K, V, BuildHasherDefault<FxHasher>>;
+pub(crate) type FxIndexSet<K> = indexmap::IndexSet<K, DefaultHashBuilder>;
+pub(crate) type FxIndexMap<K, V> = indexmap::IndexMap<K, V, DefaultHashBuilder>;
 
 mod local_state;
 use local_state::LocalState;
@@ -51,8 +52,8 @@ impl Default for Runtime {
     }
 }
 
-impl std::fmt::Debug for Runtime {
-    fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl core::fmt::Debug for Runtime {
+    fn fmt(&self, fmt: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         fmt.debug_struct("Runtime")
             .field("id", &self.id())
             .field("forked", &self.revision_guard.is_some())
@@ -69,6 +70,7 @@ impl Runtime {
     }
 
     /// See [`crate::storage::Storage::snapshot`].
+    #[cfg(feature = "std")]
     pub(crate) fn snapshot(&self) -> Self {
         if self.local_state.query_in_progress() {
             panic!("it is not legal to `snapshot` during a query (see salsa-rs/salsa#80)");
@@ -77,7 +79,10 @@ impl Runtime {
         let revision_guard = RevisionGuard::new(&self.shared_state);
 
         let id = RuntimeId {
-            counter: self.shared_state.next_id.fetch_add(1, Ordering::SeqCst),
+            counter: self
+                .shared_state
+                .next_id
+                .fetch_add(1, core::sync::atomic::Ordering::SeqCst),
         };
 
         Runtime {
@@ -392,6 +397,7 @@ impl Runtime {
 /// State that will be common to all threads (when we support multiple threads)
 struct SharedState {
     /// Stores the next id to use for a snapshotted runtime (starts at 1).
+    #[cfg_attr(not(feature = "std"), allow(dead_code))]
     next_id: AtomicUsize,
 
     /// Whenever derived queries are executing, they acquire this lock
@@ -437,6 +443,7 @@ impl SharedState {
     }
 }
 
+#[cfg(feature = "std")]
 impl std::panic::RefUnwindSafe for SharedState {}
 
 impl Default for SharedState {
@@ -445,8 +452,8 @@ impl Default for SharedState {
     }
 }
 
-impl std::fmt::Debug for SharedState {
-    fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl core::fmt::Debug for SharedState {
+    fn fmt(&self, fmt: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let query_lock = if self.query_lock.try_write().is_some() {
             "<unlocked>"
         } else if self.query_lock.try_read().is_some() {
@@ -558,8 +565,8 @@ struct DependencyGraph<K: Hash + Eq> {
     /// `K` is blocked on some query executing in the runtime `V`.
     /// This encodes a graph that must be acyclic (or else deadlock
     /// will result).
-    edges: FxHashMap<RuntimeId, Edge<K>>,
-    labels: FxHashMap<K, SmallVec<[RuntimeId; 4]>>,
+    edges: HashMap<RuntimeId, Edge<K>>,
+    labels: HashMap<K, SmallVec<[RuntimeId; 4]>>,
 }
 
 impl<K> Default for DependencyGraph<K>
@@ -627,9 +634,9 @@ where
         local_path: impl IntoIterator<Item = K>,
         output: &mut Vec<K>,
     ) where
-        K: std::fmt::Debug,
+        K: core::fmt::Debug,
     {
-        let mut current = Some((to, std::slice::from_ref(&database_key)));
+        let mut current = Some((to, core::slice::from_ref(&database_key)));
         let mut last = None;
         let mut local_path = Some(local_path);
 
@@ -659,9 +666,11 @@ where
 }
 
 struct RevisionGuard {
+    #[cfg(feature = "std")]
     shared_state: Arc<SharedState>,
 }
 
+#[cfg(feature = "std")]
 impl RevisionGuard {
     fn new(shared_state: &Arc<SharedState>) -> Self {
         // Subtle: we use a "recursive" lock here so that it is not an
@@ -681,6 +690,7 @@ impl RevisionGuard {
         // themselves to a close, versus preventing other people from
         // *starting* work).
         unsafe {
+            use parking_lot::lock_api::RawRwLockRecursive;
             shared_state.query_lock.raw().lock_shared_recursive();
         }
 
@@ -690,11 +700,13 @@ impl RevisionGuard {
     }
 }
 
+#[cfg(feature = "std")]
 impl Drop for RevisionGuard {
     fn drop(&mut self) {
         // Release our read-lock without using RAII. As documented in
         // `Snapshot::new` above, this requires the unsafe keyword.
         unsafe {
+            use parking_lot::lock_api::RawRwLock;
             self.shared_state.query_lock.raw().unlock_shared();
         }
     }

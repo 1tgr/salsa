@@ -1,3 +1,4 @@
+use crate::compat::RwLock;
 use crate::debug::TableEntry;
 use crate::durability::Durability;
 use crate::plumbing::InputQueryStorageOps;
@@ -9,11 +10,10 @@ use crate::CycleError;
 use crate::Database;
 use crate::Query;
 use crate::{DatabaseKeyIndex, QueryDb};
+use alloc::sync::Arc;
+use core::convert::TryFrom;
 use indexmap::map::Entry;
 use log::debug;
-use parking_lot::RwLock;
-use std::convert::TryFrom;
-use std::sync::Arc;
 
 /// Input queries store the result plus a list of the other queries
 /// that they invoked. This means we can avoid recomputing them when
@@ -35,6 +35,7 @@ where
     stamped_value: RwLock<StampedValue<Q::Value>>,
 }
 
+#[cfg(feature = "std")]
 impl<Q> std::panic::RefUnwindSafe for InputStorage<Q>
 where
     Q: Query,
@@ -67,8 +68,8 @@ where
         &self,
         _db: &<Q as QueryDb<'_>>::DynDb,
         index: DatabaseKeyIndex,
-        fmt: &mut std::fmt::Formatter<'_>,
-    ) -> std::fmt::Result {
+        fmt: &mut core::fmt::Formatter<'_>,
+    ) -> core::fmt::Result {
         assert_eq!(index.group_index, self.group_index);
         assert_eq!(index.query_index, Q::QUERY_INDEX);
         let slot_map = self.slots.read();
@@ -126,7 +127,7 @@ where
 
     fn entries<C>(&self, _db: &<Q as QueryDb<'_>>::DynDb) -> C
     where
-        C: std::iter::FromIterator<TableEntry<Q::Key, Q::Value>>,
+        C: core::iter::FromIterator<TableEntry<Q::Key, Q::Value>>,
     {
         let slots = self.slots.read();
         slots
@@ -290,11 +291,11 @@ where
     is_static::<Slot<Q>>();
 }
 
-impl<Q> std::fmt::Debug for Slot<Q>
+impl<Q> core::fmt::Debug for Slot<Q>
 where
     Q: Query,
 {
-    fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, fmt: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(fmt, "{:?}({:?})", Q::default(), self.key)
     }
 }

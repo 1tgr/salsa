@@ -1,3 +1,4 @@
+use crate::compat::RwLock;
 use crate::debug::TableEntry;
 use crate::durability::Durability;
 use crate::intern_id::InternId;
@@ -7,13 +8,14 @@ use crate::plumbing::QueryStorageOps;
 use crate::revision::Revision;
 use crate::Query;
 use crate::{CycleError, Database, DatabaseKeyIndex, QueryDb};
-use parking_lot::RwLock;
-use rustc_hash::FxHashMap;
-use std::collections::hash_map::Entry;
-use std::convert::From;
-use std::fmt::Debug;
-use std::hash::Hash;
-use std::sync::Arc;
+use alloc::borrow::ToOwned;
+use alloc::sync::Arc;
+use alloc::vec::Vec;
+use core::convert::From;
+use core::fmt::Debug;
+use core::hash::Hash;
+use hashbrown::hash_map::Entry;
+use hashbrown::HashMap;
 
 const INTERN_DURABILITY: Durability = Durability::HIGH;
 
@@ -35,12 +37,12 @@ where
     Q::Key: InternKey,
     Q::Value: Eq + Hash,
 {
-    phantom: std::marker::PhantomData<(Q::Key, IQ)>,
+    phantom: core::marker::PhantomData<(Q::Key, IQ)>,
 }
 
 struct InternTables<K> {
     /// Map from the key to the corresponding intern-index.
-    map: FxHashMap<K, InternId>,
+    map: HashMap<K, InternId>,
 
     /// For each valid intern-index, stores the interned value.
     values: Vec<Arc<Slot<K>>>,
@@ -85,6 +87,7 @@ struct Slot<K> {
     interned_at: Revision,
 }
 
+#[cfg(feature = "std")]
 impl<Q> std::panic::RefUnwindSafe for InternedStorage<Q>
 where
     Q: Query,
@@ -202,8 +205,8 @@ where
         &self,
         _db: &<Q as QueryDb<'_>>::DynDb,
         index: DatabaseKeyIndex,
-        fmt: &mut std::fmt::Formatter<'_>,
-    ) -> std::fmt::Result {
+        fmt: &mut core::fmt::Formatter<'_>,
+    ) -> core::fmt::Result {
         assert_eq!(index.group_index, self.group_index);
         assert_eq!(index.query_index, Q::QUERY_INDEX);
         let intern_id = InternId::from(index.key_index);
@@ -248,7 +251,7 @@ where
 
     fn entries<C>(&self, _db: &<Q as QueryDb<'_>>::DynDb) -> C
     where
-        C: std::iter::FromIterator<TableEntry<Q::Key, Q::Value>>,
+        C: core::iter::FromIterator<TableEntry<Q::Key, Q::Value>>,
     {
         let tables = self.tables.read();
         tables
@@ -314,7 +317,7 @@ where
 {
     fn new(_group_index: u16) -> Self {
         LookupInternedStorage {
-            phantom: std::marker::PhantomData,
+            phantom: core::marker::PhantomData,
         }
     }
 
@@ -322,8 +325,8 @@ where
         &self,
         db: &<Q as QueryDb<'_>>::DynDb,
         index: DatabaseKeyIndex,
-        fmt: &mut std::fmt::Formatter<'_>,
-    ) -> std::fmt::Result {
+        fmt: &mut core::fmt::Formatter<'_>,
+    ) -> core::fmt::Result {
         let group_storage =
             <<Q as QueryDb<'_>>::DynDb as HasQueryGroup<Q::Group>>::group_storage(db);
         let interned_storage = IQ::query_storage(Q::convert_group_storage(group_storage));
@@ -368,7 +371,7 @@ where
 
     fn entries<C>(&self, db: &<Q as QueryDb<'_>>::DynDb) -> C
     where
-        C: std::iter::FromIterator<TableEntry<Q::Key, Q::Value>>,
+        C: core::iter::FromIterator<TableEntry<Q::Key, Q::Value>>,
     {
         let group_storage =
             <<Q as QueryDb<'_>>::DynDb as HasQueryGroup<Q::Group>>::group_storage(db);
@@ -404,6 +407,7 @@ impl<K> Slot<K> {
 /// `DB::DatabaseData: Send + Sync`, which in turn implies that
 /// `Q::Key: Send + Sync`, `Q::Value: Send + Sync`.
 #[allow(dead_code)]
+#[cfg(feature = "std")]
 fn check_send_sync<K>()
 where
     K: Send + Sync,

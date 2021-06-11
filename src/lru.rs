@@ -1,9 +1,10 @@
+use crate::compat::Mutex;
+use alloc::sync::Arc;
+use alloc::vec::Vec;
+use core::fmt::Debug;
+use core::sync::atomic::AtomicUsize;
+use core::sync::atomic::Ordering;
 use oorandom::Rand64;
-use parking_lot::Mutex;
-use std::fmt::Debug;
-use std::sync::atomic::AtomicUsize;
-use std::sync::atomic::Ordering;
-use std::sync::Arc;
 
 /// A simple and approximate concurrent lru list.
 ///
@@ -39,7 +40,7 @@ pub(crate) trait LruNode: Sized + Debug {
 
 #[derive(Debug)]
 pub(crate) struct LruIndex {
-    /// Index in the approprate LRU list, or std::usize::MAX if not a
+    /// Index in the approprate LRU list, or core::usize::MAX if not a
     /// member.
     index: AtomicUsize,
 }
@@ -85,13 +86,13 @@ where
             self.green_zone.store(0, Ordering::Release);
             data.resize(0, 0, 0);
         } else {
-            let len = std::cmp::max(len, 3);
+            let len = core::cmp::max(len, 3);
 
             // Top 10% is the green zone. This must be at least length 1.
-            let green_zone = std::cmp::max(len / 10, 1);
+            let green_zone = core::cmp::max(len / 10, 1);
 
             // Next 20% is the yellow zone.
-            let yellow_zone = std::cmp::max(len / 5, 1);
+            let yellow_zone = core::cmp::max(len / 5, 1);
 
             // Remaining 70% is the red zone.
             let red_zone = len - yellow_zone - green_zone;
@@ -152,15 +153,15 @@ where
         }
     }
 
-    fn green_zone(&self) -> std::ops::Range<usize> {
+    fn green_zone(&self) -> core::ops::Range<usize> {
         0..self.end_green_zone
     }
 
-    fn yellow_zone(&self) -> std::ops::Range<usize> {
+    fn yellow_zone(&self) -> core::ops::Range<usize> {
         self.end_green_zone..self.end_yellow_zone
     }
 
-    fn red_zone(&self) -> std::ops::Range<usize> {
+    fn red_zone(&self) -> core::ops::Range<usize> {
         self.end_yellow_zone..self.end_red_zone
     }
 
@@ -168,7 +169,7 @@ where
         self.end_green_zone = len_green_zone;
         self.end_yellow_zone = self.end_green_zone + len_yellow_zone;
         self.end_red_zone = self.end_yellow_zone + len_red_zone;
-        let entries = std::mem::replace(&mut self.entries, Vec::with_capacity(self.end_red_zone));
+        let entries = core::mem::replace(&mut self.entries, Vec::with_capacity(self.end_red_zone));
 
         log::debug!("green_zone = {:?}", self.green_zone());
         log::debug!("yellow_zone = {:?}", self.yellow_zone());
@@ -227,7 +228,7 @@ where
         // Harder case: no capacity. Create some by evicting somebody from red
         // zone and then promoting.
         let victim_index = self.pick_index(self.red_zone());
-        let victim_node = std::mem::replace(&mut self.entries[victim_index], node.clone());
+        let victim_node = core::mem::replace(&mut self.entries[victim_index], node.clone());
         log::debug!("evicting red node {:?} from {}", victim_node, victim_index);
         victim_node.lru_index().clear();
         self.promote_red_to_green(node, victim_index);
@@ -286,8 +287,8 @@ where
         log::debug!("promoted {:?} to green index {}", node, green_index);
     }
 
-    fn pick_index(&mut self, zone: std::ops::Range<usize>) -> usize {
-        let end_index = std::cmp::min(zone.end, self.entries.len());
+    fn pick_index(&mut self, zone: core::ops::Range<usize>) -> usize {
+        let end_index = core::cmp::min(zone.end, self.entries.len());
         self.rng.rand_range(zone.start as u64..end_index as u64) as usize
     }
 }
@@ -295,7 +296,7 @@ where
 impl Default for LruIndex {
     fn default() -> Self {
         Self {
-            index: AtomicUsize::new(std::usize::MAX),
+            index: AtomicUsize::new(core::usize::MAX),
         }
     }
 }
@@ -310,11 +311,11 @@ impl LruIndex {
     }
 
     fn clear(&self) {
-        self.store(std::usize::MAX);
+        self.store(core::usize::MAX);
     }
 
     fn is_in_lru(&self) -> bool {
-        self.load() != std::usize::MAX
+        self.load() != core::usize::MAX
     }
 }
 

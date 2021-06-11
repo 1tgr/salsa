@@ -8,9 +8,9 @@ use crate::Query;
 use crate::QueryTable;
 use crate::QueryTableMut;
 use crate::RuntimeId;
-use std::borrow::Borrow;
-use std::fmt::Debug;
-use std::hash::Hash;
+use core::borrow::Borrow;
+use core::fmt::Debug;
+use core::hash::Hash;
 
 pub use crate::derived::DependencyStorage;
 pub use crate::derived::MemoizedStorage;
@@ -18,6 +18,11 @@ pub use crate::input::InputStorage;
 pub use crate::interned::InternedStorage;
 pub use crate::interned::LookupInternedStorage;
 pub use crate::{revision::Revision, DatabaseKeyIndex, QueryDb, Runtime};
+
+pub mod lib {
+    pub use alloc::sync::Arc;
+    pub use alloc::vec::Vec;
+}
 
 #[derive(Clone, Debug)]
 pub struct CycleDetected {
@@ -50,8 +55,8 @@ pub trait DatabaseOps {
     fn fmt_index(
         &self,
         index: DatabaseKeyIndex,
-        fmt: &mut std::fmt::Formatter<'_>,
-    ) -> std::fmt::Result;
+        fmt: &mut core::fmt::Formatter<'_>,
+    ) -> core::fmt::Result;
 
     /// True if the computed value for `input` may have changed since `revision`.
     fn maybe_changed_since(&self, input: DatabaseKeyIndex, revision: Revision) -> bool;
@@ -134,8 +139,8 @@ where
         &self,
         db: &<Q as QueryDb<'_>>::DynDb,
         index: DatabaseKeyIndex,
-        fmt: &mut std::fmt::Formatter<'_>,
-    ) -> std::fmt::Result;
+        fmt: &mut core::fmt::Formatter<'_>,
+    ) -> core::fmt::Result;
 
     /// True if the value of `input`, which must be from this query, may have
     /// changed since the given revision.
@@ -165,7 +170,7 @@ where
     /// Get the (current) set of the entries in the query storage
     fn entries<C>(&self, db: &<Q as QueryDb<'_>>::DynDb) -> C
     where
-        C: std::iter::FromIterator<TableEntry<Q::Key, Q::Value>>;
+        C: core::iter::FromIterator<TableEntry<Q::Key, Q::Value>>;
 }
 
 /// An optional trait that is implemented for "user mutable" storage:

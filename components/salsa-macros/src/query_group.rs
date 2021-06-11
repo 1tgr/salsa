@@ -356,7 +356,7 @@ pub(crate) fn query_group(args: TokenStream, input: TokenStream) -> TokenStream 
         //
         // FIXME(#120): the pub should not be necessary once we complete the transition
         storage_fields.extend(quote! {
-            pub #fn_name: std::sync::Arc<<#qt as salsa::Query>::Storage>,
+            pub #fn_name: salsa::plumbing::lib::Arc<<#qt as salsa::Query>::Storage>,
         });
     }
 
@@ -508,7 +508,7 @@ pub(crate) fn query_group(args: TokenStream, input: TokenStream) -> TokenStream 
 
                 fn query_storage<'a>(
                     group_storage: &'a <Self as salsa::QueryDb<'_>>::GroupStorage,
-                ) -> &'a std::sync::Arc<Self::Storage> {
+                ) -> &'a salsa::plumbing::lib::Arc<Self::Storage> {
                     &group_storage.#fn_name
                 }
             }
@@ -534,7 +534,7 @@ pub(crate) fn query_group(args: TokenStream, input: TokenStream) -> TokenStream 
                         -> Option<<Self as salsa::Query>::Value> {
                         Some(#cycle_recovery_fn(
                                 db,
-                                &cycle.iter().map(|k| format!("{:?}", k.debug(db))).collect::<Vec<String>>(),
+                                &cycle.iter().map(|k| format!("{:?}", k.debug(db))).collect::<salsa::plumbing::lib::Vec<String>>(),
                                 #(#key_names),*
                         ))
                     }
@@ -600,7 +600,7 @@ pub(crate) fn query_group(args: TokenStream, input: TokenStream) -> TokenStream 
                 #group_storage {
                     #(
                         #queries_with_storage:
-                        std::sync::Arc::new(salsa::plumbing::QueryStorageOps::new(group_index)),
+                        salsa::plumbing::lib::Arc::new(salsa::plumbing::QueryStorageOps::new(group_index)),
                     )*
                 }
             }
@@ -613,8 +613,8 @@ pub(crate) fn query_group(args: TokenStream, input: TokenStream) -> TokenStream 
                 &self,
                 db: &(#dyn_db + '_),
                 input: salsa::DatabaseKeyIndex,
-                fmt: &mut std::fmt::Formatter<'_>,
-            ) -> std::fmt::Result {
+                fmt: &mut core::fmt::Formatter<'_>,
+            ) -> core::fmt::Result {
                 match input.query_index() {
                     #fmt_ops
                     i => panic!("salsa: impossible query index {}", i),

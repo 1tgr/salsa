@@ -4,7 +4,7 @@
 /// indeed, not be `Send`.
 ///
 /// ```compile_fail,E0277
-/// use std::rc::Rc;
+/// use core::rc::Rc;
 ///
 /// #[salsa::query_group(NoSendSyncStorage)]
 /// trait NoSendSyncDatabase: salsa::Database {
@@ -41,8 +41,8 @@ fn test_key_not_send_db_not_send() {}
 /// be `Send`.
 ///
 /// ```compile_fail,E0277
-/// use std::rc::Rc;
-/// use std::cell::Cell;
+/// use core::rc::Rc;
+/// use core::cell::Cell;
 ///
 /// #[salsa::query_group(NoSendSyncStorage)]
 /// trait NoSendSyncDatabase: salsa::Database {
@@ -79,8 +79,8 @@ fn test_key_not_sync_db_not_send() {}
 /// not be `Sync`.
 ///
 /// ```compile_fail,E0277
-/// use std::cell::Cell;
-/// use std::rc::Rc;
+/// use core::cell::Cell;
+/// use core::rc::Rc;
 ///
 /// #[salsa::query_group(NoSendSyncStorage)]
 /// trait NoSendSyncDatabase: salsa::Database {

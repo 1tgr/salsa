@@ -1,6 +1,6 @@
-use parking_lot::{Condvar, Mutex};
-use std::mem;
-use std::sync::Arc;
+use crate::compat::{Condvar, Mutex};
+use alloc::sync::Arc;
+use core::mem;
 
 pub(crate) struct BlockingFuture<T> {
     slot: Arc<Slot<T>>,

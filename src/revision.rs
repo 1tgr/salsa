@@ -1,5 +1,5 @@
-use std::num::NonZeroUsize;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use core::num::NonZeroUsize;
+use core::sync::atomic::{AtomicUsize, Ordering};
 
 /// Value of the initial revision, as a u64. We don't use 0
 /// because we want to use a `NonZeroUsize`.
@@ -35,8 +35,8 @@ impl Revision {
     }
 }
 
-impl std::fmt::Debug for Revision {
-    fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl core::fmt::Debug for Revision {
+    fn fmt(&self, fmt: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(fmt, "R{}", self.generation)
     }
 }

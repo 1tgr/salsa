@@ -2,7 +2,8 @@ use crate::durability::Durability;
 use crate::runtime::ActiveQuery;
 use crate::runtime::Revision;
 use crate::DatabaseKeyIndex;
-use std::cell::{Ref, RefCell, RefMut};
+use alloc::vec::Vec;
+use core::cell::{Ref, RefCell, RefMut};
 
 /// State that is specific to a single execution thread.
 ///
@@ -88,6 +89,7 @@ impl LocalState {
     }
 }
 
+#[cfg(feature = "std")]
 impl std::panic::RefUnwindSafe for LocalState {}
 
 /// When a query is pushed onto the `active_query` stack, this guard
@@ -112,7 +114,7 @@ impl ActiveQueryGuard<'_> {
     /// Invoked when the query has successfully completed execution.
     pub(super) fn complete(self) -> ActiveQuery {
         let query = self.pop_helper();
-        std::mem::forget(self);
+        core::mem::forget(self);
         query
     }
 }

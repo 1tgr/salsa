@@ -5,7 +5,7 @@ use crate::durability::Durability;
 use crate::plumbing::QueryStorageOps;
 use crate::Query;
 use crate::QueryTable;
-use std::iter::FromIterator;
+use core::iter::FromIterator;
 
 /// Additional methods on queries that can be used to "peek into"
 /// their current state. These methods are meant for debugging and
