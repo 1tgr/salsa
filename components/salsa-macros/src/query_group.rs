@@ -1,7 +1,7 @@
 use std::convert::TryFrom;
 
 use crate::parenthesized::Parenthesized;
-use heck::CamelCase;
+use heck::ToUpperCamelCase;
 use proc_macro::TokenStream;
 use proc_macro2::Span;
 use quote::ToTokens;
@@ -36,13 +36,13 @@ pub(crate) fn query_group(args: TokenStream, input: TokenStream) -> TokenStream 
     // Decompose the trait into the corresponding queries.
     let mut queries = vec![];
     for item in input.items {
-        if let TraitItem::Method(method) = item {
+        if let TraitItem::Fn(method) = item {
             let mut storage = QueryStorage::Memoized;
             let mut cycle = None;
             let mut invoke = None;
             let query_name = method.sig.ident.to_string();
             let mut query_type = Ident::new(
-                &format!("{}Query", method.sig.ident.to_string().to_camel_case()),
+                &format!("{}Query", method.sig.ident.to_string().to_upper_camel_case()),
                 Span::call_site(),
             );
             let mut num_storages = 0;
@@ -168,7 +168,7 @@ pub(crate) fn query_group(args: TokenStream, input: TokenStream) -> TokenStream 
                 let lookup_query_type = Ident::new(
                     &format!(
                         "{}LookupQuery",
-                        method.sig.ident.to_string().to_camel_case()
+                        method.sig.ident.to_string().to_upper_camel_case()
                     ),
                     Span::call_site(),
                 );
@@ -669,13 +669,24 @@ impl TryFrom<syn::Attribute> for SalsaAttr {
     type Error = syn::Attribute;
 
     fn try_from(attr: syn::Attribute) -> Result<SalsaAttr, syn::Attribute> {
-        if is_not_salsa_attr_path(&attr.path) {
+        if is_not_salsa_attr_path(attr.path()) {
             return Err(attr);
         }
 
         let span = attr.span();
-        let name = attr.path.segments[1].ident.to_string();
-        let tts = attr.tokens.into();
+        let name = attr.path().segments[1].ident.to_string();
+        let tts = match &attr.meta {
+            syn::Meta::Path(_) => proc_macro2::TokenStream::new(),
+            syn::Meta::List(list) => {
+                let tokens = &list.tokens;
+                quote::quote!((#tokens))
+            }
+            syn::Meta::NameValue(name_value) => {
+                let value = &name_value.value;
+                quote::quote!(= #value)
+            }
+        }
+        .into();
 
         Ok(SalsaAttr { name, tts, span })
     }
