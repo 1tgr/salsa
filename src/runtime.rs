@@ -7,7 +7,7 @@ use alloc::sync::Arc;
 use alloc::vec::Vec;
 use core::hash::Hash;
 use core::sync::atomic::AtomicUsize;
-use hashbrown::hash_map::DefaultHashBuilder;
+use hashbrown::DefaultHashBuilder;
 use hashbrown::HashMap;
 use log::debug;
 use smallvec::SmallVec;
